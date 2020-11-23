@@ -114,6 +114,7 @@ class ReactExoplayerView extends FrameLayout implements
 
     private ExoPlayerView exoPlayerView;
 
+    private DataSourceUtil _dataSourceUtil;
     private DataSource.Factory mediaDataSourceFactory;
     private SimpleExoPlayer player;
     private DefaultTrackSelector trackSelector;
@@ -204,6 +205,7 @@ class ReactExoplayerView extends FrameLayout implements
         this.eventEmitter = new VideoEventEmitter(context);
         this.config = config;
         this.bandwidthMeter = config.getBandwidthMeter();
+        this._dataSourceUtil = new DataSourceUtil();
 
         createViews();
 
@@ -702,8 +704,8 @@ class ReactExoplayerView extends FrameLayout implements
      * @return A new DataSource factory.
      */
     private DataSource.Factory buildDataSourceFactory(boolean useBandwidthMeter) {
-        return DataSourceUtil.getDefaultDataSourceFactory(this.themedReactContext,
-                useBandwidthMeter ? bandwidthMeter : null, requestHeaders);
+        return _dataSourceUtil.getDefaultDataSourceFactory(this.themedReactContext,
+               useBandwidthMeter ? bandwidthMeter : null, requestHeaders, srcUri, false);
     }
 
     /**
@@ -1049,13 +1051,14 @@ class ReactExoplayerView extends FrameLayout implements
         if (uri != null) {
             boolean isOriginalSourceNull = srcUri == null;
             boolean isSourceEqual = uri.equals(srcUri);
+            boolean recreateDataSource = true;
 
             this.srcUri = uri;
             this.extension = extension;
             this.requestHeaders = headers;
             this.mediaDataSourceFactory =
-                    DataSourceUtil.getDefaultDataSourceFactory(this.themedReactContext, bandwidthMeter,
-                            this.requestHeaders);
+                    _dataSourceUtil.getDefaultDataSourceFactory(this.themedReactContext, bandwidthMeter,
+                            this.requestHeaders, uri, recreateDataSource);
 
             if (!isOriginalSourceNull && !isSourceEqual) {
                 reloadSource();

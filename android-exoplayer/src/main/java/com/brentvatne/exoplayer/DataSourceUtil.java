@@ -9,21 +9,32 @@ import com.google.android.exoplayer2.upstream.DataSource;
 import com.google.android.exoplayer2.upstream.DefaultBandwidthMeter;
 import com.google.android.exoplayer2.upstream.DefaultDataSourceFactory;
 import com.google.android.exoplayer2.upstream.HttpDataSource;
+import com.google.android.exoplayer2.upstream.cache.Cache;
+import com.google.android.exoplayer2.upstream.cache.CacheDataSourceFactory;
+import com.google.android.exoplayer2.upstream.cache.CacheEvictor;
+import com.google.android.exoplayer2.upstream.cache.LeastRecentlyUsedCacheEvictor;
+import com.google.android.exoplayer2.upstream.cache.SimpleCache;
 import com.google.android.exoplayer2.util.Util;
 
 import okhttp3.JavaNetCookieJar;
 import okhttp3.OkHttpClient;
+
+import android.net.Uri;
+import android.webkit.URLUtil;
+
+import java.io.File;
 import java.util.Map;
 
 public class DataSourceUtil {
 
-    private DataSourceUtil() {
+    public DataSourceUtil() {
     }
 
     private static DataSource.Factory rawDataSourceFactory = null;
-    private static DataSource.Factory defaultDataSourceFactory = null;
+    private DataSource.Factory defaultDataSourceFactory = null;
     private static HttpDataSource.Factory defaultHttpDataSourceFactory = null;
     private static String userAgent = null;
+    private static Cache cache = null;
 
     public static void setUserAgent(String userAgent) {
         DataSourceUtil.userAgent = userAgent;
@@ -48,15 +59,24 @@ public class DataSourceUtil {
     }
 
 
-    public static DataSource.Factory getDefaultDataSourceFactory(ReactContext context, DefaultBandwidthMeter bandwidthMeter, Map<String, String> requestHeaders) {
-        if (defaultDataSourceFactory == null || (requestHeaders != null && !requestHeaders.isEmpty())) {
-            defaultDataSourceFactory = buildDataSourceFactory(context, bandwidthMeter, requestHeaders);
+    public DataSource.Factory getDefaultDataSourceFactory(ReactContext context, DefaultBandwidthMeter bandwidthMeter, Map<String, String> requestHeaders,  Uri srcUri, Boolean recreate) {
+        if (defaultDataSourceFactory == null || recreate  || (requestHeaders != null && !requestHeaders.isEmpty())) {
+            DataSource.Factory dataSourceFactory = buildDataSourceFactory(context, bandwidthMeter, requestHeaders);
+
+            defaultDataSourceFactory = dataSourceFactory;
+
+            if (srcUri != null) {
+                Boolean isNetwork = URLUtil.isNetworkUrl(srcUri.toString());
+                if (isNetwork) {
+                    defaultDataSourceFactory = buildCacheDataSourceFactory(context, dataSourceFactory);
+                }
+            }
         }
         return defaultDataSourceFactory;
     }
 
-    public static void setDefaultDataSourceFactory(DataSource.Factory factory) {
-        DataSourceUtil.defaultDataSourceFactory = factory;
+    public void setDefaultDataSourceFactory(DataSource.Factory factory) {
+        defaultDataSourceFactory = factory;
     }
 
     public static HttpDataSource.Factory getDefaultHttpDataSourceFactory(ReactContext context, DefaultBandwidthMeter bandwidthMeter, Map<String, String> requestHeaders) {
@@ -68,6 +88,15 @@ public class DataSourceUtil {
 
     public static void setDefaultHttpDataSourceFactory(HttpDataSource.Factory factory) {
         DataSourceUtil.defaultHttpDataSourceFactory = factory;
+    }
+
+    private static DataSource.Factory buildCacheDataSourceFactory(ReactContext context, DataSource.Factory dataSourceFactory) {
+        if (cache == null) {
+            File cacheFolder = new File(context.getCacheDir(), "media");
+            CacheEvictor cacheEvictor = new LeastRecentlyUsedCacheEvictor(200 * 1024 * 1024);  // 200 MB
+            cache = new SimpleCache(cacheFolder, cacheEvictor);
+        }
+        return new CacheDataSourceFactory(cache, dataSourceFactory);
     }
 
     private static DataSource.Factory buildRawDataSourceFactory(ReactContext context) {
